@@ -34,6 +34,6 @@ struct ClientConfigTests {
         #expect(AuthState.guest.cookies.isEmpty)
         #expect(AuthState.guest.sapisid == nil)
         #expect(AuthState.guest.visitorData == nil)
-        #expect(SwiftyTube.version == "0.0.1")
+        #expect(SwiftyTubeVersion.current == "0.0.1")
     }
 }

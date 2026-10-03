@@ -273,7 +273,7 @@ public actor InnerTubeClient {
 
         var context: [String: Any] = [
             "client": clientDict,
-            "request": ["useSsl": true]
+            "request": ["internalExperimentFlags": [] as [String], "useSsl": true]
         ]
         var user: [String: Any] = ["lockedSafetyMode": false]
         if let dataSyncId = auth.dataSyncId {

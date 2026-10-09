@@ -28,8 +28,6 @@ public enum BrowseLens: Sendable {
            let sl = content["sectionListRenderer"] as? [String: Any] {
             return sl
         }
-        let topKeys = (json["contents"] as? [String: Any])?.keys.sorted() ?? []
-        InnerTubeDecode.warnOnce("BrowseLens.sectionList: no sectionListRenderer (top keys=\(topKeys))")
         return nil
     }
 

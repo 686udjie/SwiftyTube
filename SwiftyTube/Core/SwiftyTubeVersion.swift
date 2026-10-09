@@ -7,5 +7,5 @@
 
 /// Library version. Named to avoid colliding with the module name.
 public enum SwiftyTubeVersion {
-    public static let current = "0.0.2"
+    public static let current = "0.0.3"
 }

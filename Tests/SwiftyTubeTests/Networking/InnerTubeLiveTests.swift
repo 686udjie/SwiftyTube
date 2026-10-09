@@ -36,4 +36,11 @@ struct InnerTubeLiveTests {
         let json = try await client.search(query: "lofi")
         #expect(json["contents"] != nil)
     }
+
+    @Test("Country charts resolve a regional trending playlist")
+    func regionalTrending() async throws {
+        let client = InnerTubeClient(config: .music)
+        let playlistId = try await RegionalCharts.trendingPlaylistId(country: "JP", using: client)
+        #expect(playlistId.hasPrefix("VL"))
+    }
 }

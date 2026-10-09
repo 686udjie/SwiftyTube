@@ -53,6 +53,7 @@ public actor InnerTubeClient {
         browseId: String? = nil,
         params: String? = nil,
         continuation: String? = nil,
+        formData: [String: Any]? = nil,
         client: YouTubeClient? = nil,
         locale: YouTubeLocale? = nil
     ) async throws -> [String: Any] {
@@ -60,6 +61,9 @@ public actor InnerTubeClient {
         if let browseId { body["browseId"] = browseId }
         if let params { body["params"] = params }
         if let continuation { body["continuation"] = continuation }
+        // Country selector for region-scoped endpoints (charts), e.g.
+        // ["selectedValues": ["JP"]}. Unknown fields are ignored elsewhere.
+        if let formData { body["formData"] = formData }
         let json = try await post(endpoint: "browse", body: body, client: client)
         if let responseContext = json["responseContext"] as? [String: Any],
            let visitorData = responseContext["visitorData"] as? String

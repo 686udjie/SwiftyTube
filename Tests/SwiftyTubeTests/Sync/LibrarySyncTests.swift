@@ -353,6 +353,57 @@ struct PlaylistContinuationTests {
     }
 }
 
+@Suite("Regional charts")
+struct RegionalChartsTests {
+    private func chartsResponse(items: [[String: Any]]) -> [String: Any] {
+        ["contents": ["singleColumnBrowseResultsRenderer": ["tabs": [[
+            "tabRenderer": ["content": ["sectionListRenderer": ["contents": [[
+                "musicCarouselShelfRenderer": [
+                    "header": ["musicCarouselShelfBasicHeaderRenderer": ["title": ["runs": [["text": "Videos"]]]]],
+                    "contents": items
+                ]
+            ]]]]]
+        ]]]]]
+    }
+
+    private func twoRowPlaylist(title: String, browseId: String) -> [String: Any] {
+        ["musicTwoRowItemRenderer": [
+            "title": ["runs": [["text": title]]],
+            "navigationEndpoint": ["browseEndpoint": ["browseId": browseId]]
+        ]]
+    }
+
+    @Test("Prefers the Trending playlist, then daily, then first")
+    func selection() {
+        let entries = [
+            (id: "VLPL-daily", title: "Daily Top Music Videos - Japan"),
+            (id: "VLOLA-trending", title: "Trending 20 Japan"),
+            (id: "VLPL-other", title: "Top 100 Japan")
+        ]
+        #expect(RegionalCharts.selectTrending(from: entries) == "VLOLA-trending")
+        #expect(RegionalCharts.selectTrending(from: Array(entries.dropFirst())) == "VLOLA-trending")
+        #expect(RegionalCharts.selectTrending(from: [entries[2]]) == "VLPL-other")
+        #expect(RegionalCharts.selectTrending(from: []) == nil)
+    }
+
+    @Test("Parses playlist entries from charts carousels")
+    func entries() {
+        let json = chartsResponse(items: [
+            twoRowPlaylist(title: "Trending 20 Japan", browseId: "VLOLA-trending"),
+            twoRowPlaylist(title: "Daily Top Music Videos - Japan", browseId: "VLPL-daily"),
+            ["musicResponsiveListItemRenderer": ["flexColumns": []]]
+        ])
+        let entries = RegionalCharts.playlistEntries(in: json)
+        #expect(entries.map(\.id) == ["VLOLA-trending", "VLPL-daily"])
+        #expect(RegionalCharts.selectTrending(from: entries) == "VLOLA-trending")
+    }
+
+    @Test("Unknown shapes yield nothing")
+    func unknownCharts() {
+        #expect(RegionalCharts.playlistEntries(in: [:]).isEmpty)
+    }
+}
+
 @Suite("Library sync gating")
 struct LibrarySyncGatingTests {
     @Test("Disabled sections skip network but still refresh likes")

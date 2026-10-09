@@ -57,6 +57,35 @@ let me = try await tube.accountInfo() // name, email, avatar
 
 `.addVideo(videoId:setVideoId:)`, `.removeVideo(setVideoId:)`, `.renamePlaylist(name:)` build the action dicts. Pair local-then-remote writes with `OptimisticMutation.attemptingRemote(remote, rollback:)`.
 
+## Library sync
+
+The `Sync` module owns library orchestration; your database stays yours.
+Conform a store to `LibrarySyncStore` (batch section merges plus song /
+playlist / artist / album / podcast primitives), then drive the actors:
+
+```swift
+let store: any LibrarySyncStore = MyStore()
+let tube = InnerTubeClient(config: .music)
+let sync = LibrarySyncService(client: tube, store: store)
+let mutations = MutationService(client: tube, store: store)
+let incremental = IncrementalSyncService(client: tube, librarySync: sync)
+
+let options = LibrarySyncOptions(syncArtists: true, syncSongs: true /* ... */)
+let result = await sync.syncAll(options: options) {
+    await likes.refresh()
+}
+await incremental.checkAndSyncIfStale(options: options)
+
+try await mutations.likeSong(videoId: id)
+try await mutations.addToPlaylist(playlistId: id, songId: videoId)
+_ = try await mutations.createPlaylist(title: "Gym")
+```
+
+`LibraryBrowseParser` / `BrowseLens` parse the library shelves into
+`ParsedSong` / `ParsedAlbum` / `ParsedArtist` / `ParsedPlaylist` /
+`ParsedPodcast` when you need the raw rows. `SyncSong` / `SyncPlaylist`
+carry the same preserve-on-merge policy the actors apply.
+
 ## Play a stream
 
 Walks the fallback chain, mints PoTokens lazily, validates, caches - returns the first working stream:

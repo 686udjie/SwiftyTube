@@ -107,6 +107,16 @@ public extension InnerTubeClient {
         return try await post(endpoint: "account/account_menu", body: body, client: client)
     }
 
+    /// Probes `account/account_menu` to confirm the session is still valid.
+    func verifySession(
+        client: YouTubeClient? = nil,
+        locale: YouTubeLocale? = nil
+    ) async throws -> Bool {
+        let json = try await accountMenu(client: client, locale: locale)
+        guard let runs = BrowseLens.accountNameRuns(json) else { return false }
+        return runs.contains { $0["text"] is String }
+    }
+
     /// Fetches account info (name, email, profile picture).
     func accountInfo(
         client: YouTubeClient? = nil,

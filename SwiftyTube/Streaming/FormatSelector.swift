@@ -163,7 +163,7 @@ public enum FormatSelector: Sendable {
 
     // MARK: - Video Format Selection
 
-    /// Best muxed (video+audio) format, H.264 first.
+    /// Best muxed (video+audio) format: highest resolution, H.264 first.
     public static func bestVideoFormat(from formats: [Format]) -> Format? {
         guard !formats.isEmpty else {
             SwiftyTubeLog.debug("No formats to select from (video)")
@@ -200,7 +200,9 @@ public enum FormatSelector: Sendable {
         return selected
     }
 
-    /// Best DASH video-only format.
+    /// Best DASH video-only format: highest resolution, H.264 preferred for
+    /// compatibility (software VP9 stalls low-end devices and the simulator
+    /// cannot decode it at all).
     public static func bestVideoOnlyFormat(from formats: [Format]) -> Format? {
         guard !formats.isEmpty else {
             SwiftyTubeLog.debug("No formats to select from (video-only)")
@@ -219,13 +221,9 @@ public enum FormatSelector: Sendable {
             return nil
         }
 
-        let poolBase = h264PreferredPool(videoOnlyFormats, kind: "video-only")
+        SwiftyTubeLog.debug("Selecting from \(videoOnlyFormats.count) video-only formats")
 
-        let capped = poolBase.filter { ($0.height ?? 0) <= 720 }
-        let pool = capped.isEmpty ? poolBase : capped
-        if capped.isEmpty {
-            SwiftyTubeLog.debug("No video-only format ≤720p; using higher-resolution pool")
-        }
+        let pool = h264PreferredPool(videoOnlyFormats, kind: "video-only")
 
         let selected = pool.max { a, b in
             videoFormatScore(a) < videoFormatScore(b)

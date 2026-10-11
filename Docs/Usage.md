@@ -19,6 +19,27 @@ let auth = try SessionImporter.importSession(from: cookieString)
 await tube.loadState(from: store) // re-call after login/logout; store has 4 getters
 ```
 
+## Artwork quality
+
+YouTube serves every size from one URL via a `w<n>-h<n>` hint, and sources
+run to ~1400px, so asking up is free. `ArtworkURLs` rewrites thumbnail URLs
+for a given pixel size, and exposes a per-surface ladder so each surface
+shares one cache entry:
+
+```swift
+ArtworkURLs.artwork(url, at: 1200)   // rewrite the hint on a CDN URL
+ArtworkURLs.highRes(url)              // same, at the player rung
+ArtworkURLs.sized(url, width: 480, height: 480)
+ArtworkURLs.rung(for: 450)            // 480 — smallest ladder rung covering it
+ArtworkURLs.maxResVariant(url)        // ytimg → maxresdefault (strip ?sqp=…)
+ArtworkURLs.sdVariant(url)            // ytimg → sddefault (more likely to exist)
+ArtworkURLs.fallback(for: videoId)    // guaranteed hqdefault
+```
+
+Rungs: rows 160, cards 480, headers 720, player 1200. Video thumbnails
+(ytimg) carry no size hint — swap `hqdefault` via `maxResVariant`/`sdVariant`
+instead of rewriting.
+
 ## Browse, search, player
 
 Raw JSON in, your models out. All calls take optional `client:` / `locale:` overrides.
@@ -155,7 +176,7 @@ let url = try await CipherExecutor.shared.resolveCipherURL(
 let config = await PlayerConfigStore.shared.config(for: hash)
 ```
 
-`po_token.html` must be embedded in your app bundle (see README).
+`po_token.html` ships with the package; apps with their own copy keep working as a fallback.
 
 ## Parsing helpers
 

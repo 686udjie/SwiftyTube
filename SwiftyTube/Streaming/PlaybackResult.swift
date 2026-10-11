@@ -61,4 +61,21 @@ public struct PlaybackResult: Sendable, Hashable, Codable {
         self.muxedStreamUrl = muxedStreamUrl
         self.loudnessDb = loudnessDb
     }
+
+    /// Whether a real (watchable) video exists — not just an auto-generated
+    /// art-track still. An ATV always ships video streams (cover stills), so
+    /// bare stream presence must not imply video; only a non-ATV type counts,
+    /// with unknown types keeping the stream fallback.
+    public var hasRealVideo: Bool {
+        Self.hasWatchableVideo(musicVideoType: musicVideoType, hasVideoContent: hasVideoContent)
+    }
+
+    /// Pure form of the verdict, for callers combining a row-level type with
+    /// resolve-level stream info.
+    public static func hasWatchableVideo(musicVideoType: String?, hasVideoContent: Bool) -> Bool {
+        let typeHasVideo = musicVideoType != nil
+            && musicVideoType != "MUSIC_VIDEO_TYPE_ATV"
+            && musicVideoType != "MUSIC_VIDEO_TYPE_PODCAST_EPISODE"
+        return typeHasVideo || (hasVideoContent && musicVideoType != "MUSIC_VIDEO_TYPE_ATV")
+    }
 }

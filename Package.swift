@@ -8,7 +8,11 @@ let package = Package(
         .library(name: "SwiftyTube", type: .static, targets: ["SwiftyTube"])
     ],
     targets: [
-        .target(name: "SwiftyTube", path: "SwiftyTube"),
+        .target(
+            name: "SwiftyTube",
+            path: "SwiftyTube",
+            resources: [.copy("po_token.html"), .copy("player_configs.json")]
+        ),
         .testTarget(name: "SwiftyTubeTests", dependencies: ["SwiftyTube"])
     ]
 )

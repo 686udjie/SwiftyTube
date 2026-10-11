@@ -24,9 +24,10 @@ public actor PoTokenGenerator: NSObject {
         self.botGuard = botGuard
     }
 
-    /// `po_token.html` from the embedding bundle (`Bundle.main` finds app files).
+    /// `po_token.html` from the package resources (`Bundle.module`), falling
+    /// back to an embedding bundle for apps that ship their own copy.
     public static func html(bundle: Bundle = .main) -> String? {
-        let candidates = [bundle, Bundle(for: PoTokenGenerator.self)]
+        let candidates = [Bundle.module, bundle, Bundle(for: PoTokenGenerator.self)]
         for candidate in candidates {
             if let path = candidate.path(forResource: "po_token", ofType: "html"),
                let html = try? String(contentsOfFile: path, encoding: .utf8) {

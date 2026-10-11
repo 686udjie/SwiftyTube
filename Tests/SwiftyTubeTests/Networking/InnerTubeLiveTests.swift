@@ -43,4 +43,22 @@ struct InnerTubeLiveTests {
         let playlistId = try await RegionalCharts.trendingPlaylistId(country: "JP", using: client)
         #expect(playlistId.hasPrefix("VL"))
     }
+
+    @Test("Art-track without row type resolves to no video")
+    func artTrackHasNoVideo() async throws {
+        // qsmGXc6cQLY is an auto-generated art-track: VR responses omit its
+        // type, so this exercises the authoritative webRemix lookup.
+        let client = InnerTubeClient(config: .music)
+        let result = PlaybackResult(
+            streamUrl: "u", itag: 1, mimeType: "m", bitrate: 2,
+            audioQuality: "q", videoId: "qsmGXc6cQLY", title: nil, author: nil,
+            duration: nil, expiresInSeconds: 1, clientName: "c",
+            musicVideoType: nil, hasVideoContent: true,
+            muxedStreamUrl: nil, loudnessDb: nil
+        )
+        let hasVideo = await VideoAvailability.shared.hasVideo(
+            videoId: "qsmGXc6cQLY", rowType: nil, result: result, using: client
+        )
+        #expect(!hasVideo)
+    }
 }

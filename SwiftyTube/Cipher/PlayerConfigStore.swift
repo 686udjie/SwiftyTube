@@ -281,9 +281,8 @@ public actor PlayerConfigStore {
     private var metaCacheURL: URL? { storeDir?.appendingPathComponent("configs_remote.meta") }
 
     private func loadBundled() -> [String: PlayerConfig]? {
-        // Static libraries cannot own resources: the app embeds
-        // player_configs.json (e.g. via a synchronized folder).
-        for candidate in [bundle, Bundle(for: PlayerConfigStore.self)] {
+        // Packaged resources first, then an app-embedded copy.
+        for candidate in [Bundle.module, bundle, Bundle(for: PlayerConfigStore.self)] {
             if let url = candidate.url(forResource: "player_configs", withExtension: "json"),
                let data = try? Data(contentsOf: url),
                let text = String(data: data, encoding: .utf8) {

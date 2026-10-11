@@ -17,6 +17,59 @@ private func format(_ json: String) -> Format {
 
 @Suite("Streaming coverage")
 struct StreamingCoverageTests {
+    private func result(type: String?, streams: Bool) -> PlaybackResult {
+        PlaybackResult(
+            streamUrl: "u", itag: 1, mimeType: "m", bitrate: 2,
+            audioQuality: "q", videoId: "v", title: nil, author: nil,
+            duration: nil, expiresInSeconds: 1, clientName: "c",
+            musicVideoType: type, hasVideoContent: streams,
+            muxedStreamUrl: nil, loudnessDb: nil
+        )
+    }
+
+    @Test("Real video excludes art-tracks but keeps the stream fallback")
+    func hasRealVideo() {
+        #expect(result(type: "MUSIC_VIDEO_TYPE_OMV", streams: true).hasRealVideo)
+        #expect(result(type: "MUSIC_VIDEO_TYPE_UGC", streams: true).hasRealVideo)
+        #expect(result(type: nil, streams: true).hasRealVideo)
+        #expect(result(type: "MUSIC_VIDEO_TYPE_PODCAST_EPISODE", streams: true).hasRealVideo)
+        #expect(!result(type: "MUSIC_VIDEO_TYPE_ATV", streams: true).hasRealVideo)
+        #expect(!result(type: "MUSIC_VIDEO_TYPE_ATV", streams: false).hasRealVideo)
+        #expect(!result(type: nil, streams: false).hasRealVideo)
+        #expect(PlaybackResult.hasWatchableVideo(musicVideoType: "MUSIC_VIDEO_TYPE_ATV", hasVideoContent: true) == false)
+        #expect(PlaybackResult.hasWatchableVideo(musicVideoType: "MUSIC_VIDEO_TYPE_OMV", hasVideoContent: false))
+    }
+
+    @Test("Row music type reads the watch-endpoint music config")
+    func rowMusicVideoType() {
+        let atv: [String: Any] = ["navigationEndpoint": ["watchEndpoint": [
+            "videoId": "v",
+            "watchEndpointMusicSupportedConfigs": ["watchEndpointMusicConfig": ["musicVideoType": "MUSIC_VIDEO_TYPE_ATV"]]
+        ]]]
+        #expect(VideoAvailability.rowMusicVideoType(atv) == "MUSIC_VIDEO_TYPE_ATV")
+        let flex: [String: Any] = ["flexColumns": [[
+            "musicResponsiveListItemFlexColumnRenderer": ["text": ["runs": [
+                ["text": "Song", "navigationEndpoint": ["watchEndpoint": [
+                    "videoId": "v",
+                    "watchEndpointMusicSupportedConfigs": ["watchEndpointMusicConfig": ["musicVideoType": "MUSIC_VIDEO_TYPE_OMV"]]
+                ]]]
+            ]]]
+        ]]]
+        #expect(VideoAvailability.rowMusicVideoType(flex) == "MUSIC_VIDEO_TYPE_OMV")
+        #expect(VideoAvailability.rowMusicVideoType([:]) == nil)
+        #expect(VideoAvailability.rowMusicVideoType(["navigationEndpoint": ["browseEndpoint": ["browseId": "UCx"]]]) == nil)
+    }
+
+    @Test("Row type decides without network")
+    func rowTypeFastPath() async {
+        let client = InnerTubeClient(config: .music)
+        let atv = result(type: nil, streams: true)
+        let noVideo = await VideoAvailability.shared.hasVideo(videoId: "v", rowType: "MUSIC_VIDEO_TYPE_ATV", result: atv, using: client)
+        #expect(!noVideo)
+        let yesVideo = await VideoAvailability.shared.hasVideo(videoId: "v", rowType: "MUSIC_VIDEO_TYPE_OMV", result: atv, using: client)
+        #expect(yesVideo)
+    }
+
     @Test("Download selection honors quality tiers")
     func downloadTiers() {
         let aac128 = format(
@@ -66,17 +119,28 @@ struct StreamingCoverageTests {
         #expect(FormatSelector.h264PreferredPool([vp9], kind: "x").count == 1)
     }
 
-    @Test("Video-only selection caps at 720p")
-    func videoOnlyCap() {
+    @Test("Video-only selection picks highest resolution")
+    func videoOnlyHighestRes() {
         let p1080 = format(
             #"{"itag":137,"mimeType":"video/mp4; codecs=\"avc1.640028\"","width":1920,"height":1080,"url":"https://example/h"}"#
         )
         let p720 = format(
             #"{"itag":136,"mimeType":"video/mp4; codecs=\"avc1.4d401f\"","width":1280,"height":720,"url":"https://example/m"}"#
         )
-        #expect(FormatSelector.bestVideoOnlyFormat(from: [p1080, p720])?.itag == 136)
+        #expect(FormatSelector.bestVideoOnlyFormat(from: [p1080, p720])?.itag == 137)
         #expect(FormatSelector.bestVideoFormat(from: []) == nil)
         #expect(FormatSelector.bestVideoOnlyFormat(from: []) == nil)
+    }
+
+    @Test("Video-only selection still prefers H.264 over higher-res VP9")
+    func videoOnlyH264Preference() {
+        let vp9 = format(
+            #"{"itag":248,"mimeType":"video/webm; codecs=\"vp9\"","width":1920,"height":1080,"url":"https://example/v"}"#
+        )
+        let h264 = format(
+            #"{"itag":136,"mimeType":"video/mp4; codecs=\"avc1.4d401f\"","width":1280,"height":720,"url":"https://example/m"}"#
+        )
+        #expect(FormatSelector.bestVideoOnlyFormat(from: [vp9, h264])?.itag == 136)
     }
 
     @Test("PlaybackResult survives a Codable round trip")

@@ -149,19 +149,6 @@ public enum LibraryBrowseParser: Sendable {
     }
 }
 
-// MARK: - Clock parsing
-
-extension LibraryBrowseParser {
-    /// Parses "m:ss" / "h:mm:ss" clock strings ("." and "," tolerated as
-    /// separators); nil when unparseable.
-    static func parseClock(_ text: String) -> Int? {
-        let parts = text.components(separatedBy: CharacterSet(charactersIn: ":.,")).compactMap { Int($0) }
-        guard parts.count == 2 || parts.count == 3 else { return nil }
-        if parts.count == 2 { return parts[0] * 60 + parts[1] }
-        return parts[0] * 3600 + parts[1] * 60 + parts[2]
-    }
-}
-
 // MARK: Renderer extraction
 
 extension LibraryBrowseParser {
@@ -337,13 +324,13 @@ extension LibraryBrowseParser {
            let runsArray = runs["runs"] as? [[String: Any]],
            let firstRun = runsArray.first,
            let text = firstRun["text"] as? String {
-            return parseClock(text) ?? Int(text) ?? 0
+            return DurationFormat.parseClock(text) ?? Int(text) ?? 0
         }
         // Fallback: check flex column subtitle for duration pattern
         let subtitleRuns = allFlexTextRuns(item, index: 1)
         for run in subtitleRuns {
             if run.contains(":") && run.count <= 8 {
-                return parseClock(run) ?? Int(run) ?? 0
+                return DurationFormat.parseClock(run) ?? Int(run) ?? 0
             }
         }
         return 0
@@ -414,7 +401,7 @@ extension LibraryBrowseParser {
                     songCount = Int(num) ?? 0
                 }
                 if run.contains(":") {
-                    duration = parseClock(run) ?? Int(run) ?? 0
+                    duration = DurationFormat.parseClock(run) ?? Int(run) ?? 0
                 }
             }
             return ParsedAlbum(
@@ -565,5 +552,38 @@ extension LibraryBrowseParser {
     public static func parsePodcasts(from response: [String: Any]) -> [ParsedPodcast] {
         guard let items = extractItems(from: response) else { return [] }
         return items.compactMap { parsePodcast($0) }
+    }
+
+    /// Community playlists off an artist page: shelf rows whose browse id is
+    /// a plain playlist (no radio, mixes, or album links), capped at 10.
+    public static func extractCommunityPlaylists(from json: [String: Any]) -> [ParsedPlaylist] {
+        guard let sections = BrowseLens.browseSections(json) else { return [] }
+
+        var playlists: [ParsedPlaylist] = []
+        for section in sections {
+            guard playlists.count < 10 else { break }
+            guard let shelf = section["musicShelfRenderer"] as? [String: Any],
+                  let contents = shelf["contents"] as? [[String: Any]] else { continue }
+            for entry in contents {
+                guard playlists.count < 10 else { break }
+                guard let renderer = entry["musicResponsiveListItemRenderer"] as? [String: Any] else { continue }
+                guard let nav = renderer["navigationEndpoint"] as? [String: Any],
+                      let browse = nav["browseEndpoint"] as? [String: Any],
+                      let bid = browse["browseId"] as? String else { continue }
+                let stripped = normalizePlaylistId(bid)
+                guard !stripped.hasPrefix("RD"),
+                      !stripped.hasPrefix("OLAK"),
+                      !stripped.hasPrefix("MPREb_") else { continue }
+                if let playlist = parsePlaylist(entry) {
+                    playlists.append(playlist)
+                }
+            }
+        }
+        return playlists
+    }
+
+    /// Strips the `VL` browse prefix down to the raw playlist id.
+    public static func normalizePlaylistId(_ id: String) -> String {
+        id.hasPrefix("VL") ? String(id.dropFirst(2)) : id
     }
 }

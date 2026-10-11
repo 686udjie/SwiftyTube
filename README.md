@@ -43,10 +43,12 @@ UI, response parsing, databases, settings, Keychain service names, playback. The
 
 ## Resources
 
-Static libraries can't bundle resources, so each app must embed these two files from `SwiftyTube/Resources/` (a synchronized folder does it automatically):
+Bundled with the package (`SwiftyTube/Resources/`, resolved via `Bundle.module`):
 
 - `player_configs.json` - offline cipher configs
 - `po_token.html` - PoToken minter page
+
+Apps that already embed their own copies keep working — those are checked as a fallback.
 
 ## License
 

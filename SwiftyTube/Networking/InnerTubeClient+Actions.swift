@@ -59,7 +59,9 @@ public extension InnerTubeClient {
 
     // MARK: - Pagination
 
-    /// All pages via continuations (stops on repeats/cap).
+    /// All pages via continuations. Throws on repeats/cap instead of
+    /// returning partial data: callers sweep remote state against the result,
+    /// so a truncated page must fail the section, not corrupt the library.
     func paginate<T>(
         browseId: String,
         params: String? = nil,
@@ -74,23 +76,20 @@ public extension InnerTubeClient {
         var seenTokens = Set<String>()
         var pages = 0
         repeat {
-            let json = try await browse(
-                browseId: browseId,
-                params: params,
-                continuation: token,
-                client: client,
-                locale: locale
-            )
+            let json: [String: Any]
+            if let token {
+                json = try await browse(continuation: token)
+            } else {
+                json = try await browse(browseId: browseId, params: params, client: client, locale: locale)
+            }
             allItems.append(contentsOf: parse(json))
             token = continuation(json)
             pages += 1
             if let token, !seenTokens.insert(token).inserted {
-                SwiftyTubeLog.error("paginate \(browseId): repeated continuation token, stopping")
-                break
+                throw InnerTubeError.truncatedResponse("paginate \(browseId): repeated continuation token")
             }
             if pages >= maxPages {
-                SwiftyTubeLog.error("paginate \(browseId): hit \(maxPages)-page cap, stopping")
-                break
+                throw InnerTubeError.truncatedResponse("paginate \(browseId): hit \(maxPages)-page cap")
             }
         } while token != nil
         return allItems

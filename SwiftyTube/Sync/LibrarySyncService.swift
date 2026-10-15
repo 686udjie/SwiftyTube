@@ -96,9 +96,11 @@ extension LibrarySyncService {
 
     /// Merges YTM's Liked Music auto-playlist (VLLM) into the permanent local
     /// Liked Songs list, like Metrolist. The LM playlist row itself is
-    /// deleted right away so it never appears in the library.
+    /// deleted right away so it never appears in the library. Reaching here
+    /// means the fetch succeeded, so an empty remote is a verified "unliked
+    /// everything" and the stale sweep runs regardless of count.
     public func syncLikedSongs() async throws -> Set<String> {
-        _ = try await playlistDetail.fetchPlaylist(playlistId: "LM")
+        _ = try await playlistDetail.fetchPlaylist(playlistId: "LM", throwOnTruncation: true)
         let orderedIds = try await store.likedPlaylistSongIdsOrdered(playlistId: "LM")
         let remoteIds = Set(orderedIds)
         if !orderedIds.isEmpty {
@@ -106,9 +108,9 @@ extension LibrarySyncService {
             // sorts by create_date: newest like first, staggered by shelf position.
             let base = Date()
             try await store.mirrorLikedSongs(orderedIds: orderedIds, baseDate: base)
-            let graceCutoff = Date().addingTimeInterval(-5 * 60)
-            try await store.unmarkStaleLikedSongs(excluding: remoteIds, graceCutoff: graceCutoff)
         }
+        let graceCutoff = Date().addingTimeInterval(-5 * 60)
+        try await store.unmarkStaleLikedSongs(excluding: remoteIds, graceCutoff: graceCutoff)
         try await store.deletePlaylistRows(playlistId: "LM")
         return remoteIds
     }

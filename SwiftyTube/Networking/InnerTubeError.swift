@@ -11,6 +11,7 @@ public enum InnerTubeError: Error, LocalizedError, Sendable {
     case invalidResponse
     case httpError(statusCode: Int, data: Data)
     case decodingFailed
+    case truncatedResponse(String)
 
     public var errorDescription: String? {
         switch self {
@@ -20,6 +21,8 @@ public enum InnerTubeError: Error, LocalizedError, Sendable {
             return "HTTP \(statusCode)"
         case .decodingFailed:
             return "Failed to decode response JSON"
+        case .truncatedResponse(let detail):
+            return "Truncated response: \(detail)"
         }
     }
 }

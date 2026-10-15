@@ -170,8 +170,8 @@ public enum StreamResolver: Sendable {
 
         let selectedFormat: Format
         if let preferred = options.preferredFormat,
-           adaptiveFormats.contains(where: { $0.itag == preferred.itag }) {
-            selectedFormat = preferred
+           let fresh = adaptiveFormats.first(where: { $0.itag == preferred.itag }) {
+            selectedFormat = fresh
             SwiftyTubeLog.debug("Using preferred format itag=\(preferred.itag ?? 0)")
         } else if options.forDownload,
                   let downloadFormat = FormatSelector.bestDownloadFormat(
@@ -211,7 +211,7 @@ public enum StreamResolver: Sendable {
 
         var finalStreamUrl = streamUrl
         if let pot = options.streamingDataPoToken, client.useWebPoTokens {
-            finalStreamUrl += "&pot=" + Self.encodeQueryValue(pot)
+            finalStreamUrl = Self.appendingPoToken(to: finalStreamUrl, pot: pot)
             SwiftyTubeLog.debug("Appended &pot= to stream URL")
         }
 
@@ -224,11 +224,10 @@ public enum StreamResolver: Sendable {
                   let url = videoFormat.url, !url.isEmpty else {
                 return nil
             }
-            var muxed = url
-            if let pot = options.streamingDataPoToken, client.useWebPoTokens {
-                muxed += "&pot=" + Self.encodeQueryValue(pot)
+            guard let pot = options.streamingDataPoToken, client.useWebPoTokens else {
+                return url
             }
-            return muxed
+            return Self.appendingPoToken(to: url, pot: pot)
         }()
 
         let result = PlaybackResult(
@@ -276,6 +275,12 @@ public enum StreamResolver: Sendable {
     /// Query-escape incl. +, =, &, /.
     static func encodeQueryValue(_ value: String) -> String {
         value.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? value
+    }
+
+    /// Appends the po_token with the right separator (cipher-resolved URLs
+    /// don't always carry a query string).
+    static func appendingPoToken(to url: String, pot: String) -> String {
+        url.contains("?") ? "\(url)&pot=\(encodeQueryValue(pot))" : "\(url)?pot=\(encodeQueryValue(pot))"
     }
 
     /// 1 KiB Range GET check.

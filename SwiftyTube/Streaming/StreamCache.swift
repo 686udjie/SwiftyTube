@@ -33,7 +33,7 @@ public actor StreamCache {
     }
 
     public func set(videoId: String, result: PlaybackResult) {
-        let ttl = result.expiresInSeconds > 60 ? result.expiresInSeconds : 5 * 3600
+        let ttl = result.expiresInSeconds > 60 ? result.expiresInSeconds : 5 * 60
         let entry = Entry(result: result, expiresAt: Date().addingTimeInterval(TimeInterval(ttl)))
         cache[videoId] = entry
         SwiftyTubeLog.debug("Cached videoId=\(videoId) expires in \(ttl)s")

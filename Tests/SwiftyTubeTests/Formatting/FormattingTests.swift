@@ -12,6 +12,26 @@ import Testing
 
 @Suite("Formatting")
 struct FormattingTests {
+    @Test("Playback time rolls hours over at 60 minutes")
+    func playbackTime() {
+        #expect(DurationFormat.playbackTime(0) == "0:00")
+        #expect(DurationFormat.playbackTime(16) == "0:16")
+        #expect(DurationFormat.playbackTime(205) == "3:25")
+        #expect(DurationFormat.playbackTime(3599) == "59:59")
+        #expect(DurationFormat.playbackTime(3600) == "1:00:00")
+        #expect(DurationFormat.playbackTime(5601) == "1:33:21")
+    }
+
+    @Test("Clock parsing is anchored so counts never read as durations")
+    func parseClock() {
+        #expect(DurationFormat.parseClock("3:21") == 201)
+        #expect(DurationFormat.parseClock("1:33:21") == 5601)
+        #expect(DurationFormat.parseClock("1,234") == nil)
+        #expect(DurationFormat.parseClock("2024") == nil)
+        #expect(DurationFormat.parseClock("14K views") == nil)
+        #expect(DurationFormat.parseClock("") == nil)
+    }
+
     @Test("Renderer duration tries every known shape in order")
     func rendererDuration() {
         #expect(DurationFormat.parseRendererDuration([:]) == 0)
@@ -29,6 +49,14 @@ struct FormattingTests {
             DurationFormat.parseRendererDuration([
                 "subtitle": ["runs": [["text": "Song"], ["text": " • "], ["text": "2:30"]]]
             ]) == 150
+        )
+        #expect(
+            DurationFormat.parseRendererDuration([
+                "subtitle": ["runs": [
+                    ["text": "Video"], ["text": " • "], ["text": "Aria"],
+                    ["text": " • "], ["text": "1:33:21"], ["text": " • "], ["text": "42K views"]
+                ]]
+            ]) == 5601
         )
         #expect(
             DurationFormat.parseRendererDuration([

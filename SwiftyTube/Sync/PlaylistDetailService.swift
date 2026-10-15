@@ -16,8 +16,8 @@ public actor PlaylistDetailService {
         self.store = store
     }
 
-    public func fetchPlaylist(playlistId: String, maxPages: Int = 100) async throws -> Int {
-        let (_, snapshot) = try await fetchPlaylistRows(playlistId: playlistId, maxPages: maxPages)
+    public func fetchPlaylist(playlistId: String, maxPages: Int = 100, throwOnTruncation: Bool = false) async throws -> Int {
+        let (_, snapshot) = try await fetchPlaylistRows(playlistId: playlistId, maxPages: maxPages, throwOnTruncation: throwOnTruncation)
         let browseId = Self.requestBrowseId(for: playlistId)
         let existing = try await store.fetchPlaylist(id: playlistId)
         let entity = SyncPlaylist.merging(
@@ -71,8 +71,14 @@ public actor PlaylistDetailService {
 
     /// All raw track rows across every page, plus the first page's JSON for
     /// header parsing. Markers are stripped; each row carries a
-    /// `musicResponsiveListItemRenderer`.
-    public func fetchPlaylistRows(playlistId: String, maxPages: Int = 100) async throws -> (firstPage: [String: Any], rows: [[String: Any]]) {
+    /// `musicResponsiveListItemRenderer`. With `throwOnTruncation`, a repeat
+    /// token or page cap throws instead of returning partial rows — sync
+    /// callers must not sweep against a truncated snapshot.
+    public func fetchPlaylistRows(
+        playlistId: String,
+        maxPages: Int = 100,
+        throwOnTruncation: Bool = false
+    ) async throws -> (firstPage: [String: Any], rows: [[String: Any]]) {
         // Stored ids may already carry the prefix (library rows keep the
         // endpoint's VL… id); blindly prepending yields VLVL… and the server
         // answers with a content-less response.
@@ -102,10 +108,16 @@ public actor PlaylistDetailService {
             token = extractPlaylistContinuation(from: json)
             pages += 1
             if let token, !seenTokens.insert(token).inserted {
+                if throwOnTruncation {
+                    throw InnerTubeError.truncatedResponse("fetchPlaylist \(playlistId): repeated continuation token")
+                }
                 SwiftyTubeLog.error("fetchPlaylist \(playlistId): repeated continuation token, stopping")
                 break
             }
             if pages >= maxPages {
+                if throwOnTruncation {
+                    throw InnerTubeError.truncatedResponse("fetchPlaylist \(playlistId): hit \(maxPages)-page cap")
+                }
                 SwiftyTubeLog.error("fetchPlaylist \(playlistId): hit \(maxPages)-page cap, stopping")
                 break
             }

@@ -10,12 +10,21 @@ import Foundation
 /// Duration parsing and formatting shared by parsers and apps.
 public enum DurationFormat: Sendable {
     /// Parses "m:ss" / "h:mm:ss" clock strings ("." and "," tolerated as
-    /// separators); nil when unparseable.
+    /// separators); nil when unparseable. Anchored to the full string so
+    /// counts ("1,234") and years can never read as durations.
     public static func parseClock(_ text: String) -> Int? {
-        let parts = text.components(separatedBy: CharacterSet(charactersIn: ":.,")).compactMap { Int($0) }
-        guard parts.count == 2 || parts.count == 3 else { return nil }
-        if parts.count == 2 { return parts[0] * 60 + parts[1] }
-        return parts[0] * 3600 + parts[1] * 60 + parts[2]
+        let pattern = #"^(\d{1,3})[:.,](\d{2})(?:[:.,](\d{2}))?$"#
+        guard let regex = try? NSRegularExpression(pattern: pattern),
+              let match = regex.firstMatch(in: text, range: NSRange(text.startIndex..., in: text))
+        else { return nil }
+        func group(_ i: Int) -> Int {
+            guard let range = Range(match.range(at: i), in: text) else { return 0 }
+            return Int(text[range]) ?? 0
+        }
+        if match.range(at: 3).location != NSNotFound {
+            return group(1) * 3600 + group(2) * 60 + group(3)
+        }
+        return group(1) * 60 + group(2)
     }
 
     /// "m:ss" for playback positions. Never empty; clamps negatives and
@@ -23,7 +32,13 @@ public enum DurationFormat: Sendable {
     public static func playbackTime(_ t: TimeInterval) -> String {
         guard t.isFinite else { return "0:00" }
         let total = max(Int(t), 0)
-        return "\(total / 60):\(String(format: "%02d", total % 60))"
+        let hours = total / 3600
+        let minutes = (total % 3600) / 60
+        let seconds = total % 60
+        if hours > 0 {
+            return "\(hours):\(String(format: "%02d", minutes)):\(String(format: "%02d", seconds))"
+        }
+        return "\(minutes):\(String(format: "%02d", seconds))"
     }
 
     /// Parses spoken durations like "1 hr 23 mins", "45 mins" or "2 hours".
@@ -110,16 +125,12 @@ public enum DurationFormat: Sendable {
             }
         }
 
-        // 5. Subtitle runs — last segment after "•" separator may be duration
+        // 5. Subtitle runs — first clock-shaped run wins (durations trail,
+        // but scanning beats assuming the last segment holds it).
         if let subtitle = renderer["subtitle"] as? [String: Any],
-           let runs = subtitle["runs"] as? [[String: Any]] {
-            let allText = runs.compactMap { $0["text"] as? String }
-            let segments = allText.split { $0 == " • " || $0.trimmingCharacters(in: .whitespaces) == "•" }
-            if let lastSegment = segments.last,
-               let lastText = lastSegment.last(where: { !$0.trimmingCharacters(in: .whitespaces).isEmpty }),
-               let parsed = parseClock(lastText.trimmingCharacters(in: .whitespaces)) {
-                return parsed
-            }
+           let runs = subtitle["runs"] as? [[String: Any]],
+           let found = firstClock(in: runs) {
+            return found
         }
 
         // 6. flexColumns[1] subtitle text (for MusicResponsiveListItemRenderer)
@@ -128,18 +139,23 @@ public enum DurationFormat: Sendable {
             let flexRenderer = (col["musicResponsiveListItemFlexColumnRenderer"] as? [String: Any])
                 ?? (col["musicResponsiveListItemColumnRenderer"] as? [String: Any])
             if let textDict = flexRenderer?["text"] as? [String: Any],
-               let runs = textDict["runs"] as? [[String: Any]] {
-                let allText = runs.compactMap { $0["text"] as? String }
-                let segments = allText.split { $0 == " • " || $0.trimmingCharacters(in: .whitespaces) == "•" }
-                if let lastSegment = segments.last,
-                   let lastText = lastSegment.last(where: { !$0.trimmingCharacters(in: .whitespaces).isEmpty }),
-                   let parsed = parseClock(lastText.trimmingCharacters(in: .whitespaces)) {
-                    return parsed
-                }
+               let runs = textDict["runs"] as? [[String: Any]],
+               let found = firstClock(in: runs) {
+                return found
             }
         }
 
         return 0
+    }
+
+    private static func firstClock(in runs: [[String: Any]]) -> Int? {
+        for run in runs {
+            guard let text = run["text"] as? String else { continue }
+            if let parsed = parseClock(text.trimmingCharacters(in: .whitespacesAndNewlines)) {
+                return parsed
+            }
+        }
+        return nil
     }
 }
 

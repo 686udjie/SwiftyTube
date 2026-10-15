@@ -44,7 +44,7 @@ public actor IncrementalSyncService {
         guard (try? await client.accountMenu()) != nil else { return }
 
         let result = await librarySync.syncAll(options: options, onLikesRefresh: onLikesRefresh)
-        guard result.completedSections > 0 else { return }
+        guard options.enabledCount > 0, result.completedSections >= options.enabledCount else { return }
         defaults.set(Date(), forKey: lastSyncKey)
     }
 }

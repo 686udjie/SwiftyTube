@@ -213,6 +213,12 @@ public enum StreamFallback: Sendable {
                 )
 
                 guard let streamingData = response.streamingData else {
+                    lastError = StreamError.noStreams
+                    continue
+                }
+
+                if let status = response.playabilityStatus?.status, status != "OK" {
+                    lastError = StreamError.unplayable(reason: response.playabilityStatus?.reason ?? status)
                     continue
                 }
 
@@ -228,10 +234,14 @@ public enum StreamFallback: Sendable {
                    let audio = FormatSelector.bestAudioFormat(
                        from: allFormats,
                        preference: request.options.audioQuality
-                   ),
-                   let audioURL = try? await resolveFormatURL(audio, providers: providers) {
-                    let duration = response.videoDetails?.lengthSeconds.flatMap(Int.init)
-                    return .split(video: videoURL, audio: audioURL, duration: duration)
+                   ) {
+                    do {
+                        let audioURL = try await resolveFormatURL(audio, providers: providers)
+                        let duration = response.videoDetails?.lengthSeconds.flatMap(Int.init)
+                        return .split(video: videoURL, audio: audioURL, duration: duration)
+                    } catch {
+                        lastError = error
+                    }
                 }
             } catch {
                 lastError = error

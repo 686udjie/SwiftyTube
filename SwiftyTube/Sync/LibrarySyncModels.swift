@@ -29,6 +29,10 @@ public struct LibrarySyncOptions: Sendable, Hashable {
         self.syncPodcasts = syncPodcasts
         self.syncSongs = syncSongs
     }
+
+    public var enabledCount: Int {
+        [syncArtists, syncPlaylists, syncAlbums, syncPodcasts, syncSongs].filter { $0 }.count
+    }
 }
 
 /// Per-section remote ids collected by a full sync.
@@ -276,6 +280,8 @@ extension SyncPlaylist {
     /// user's name/editability/bookmark. Used when materializing a playlist's
     /// contents (sync + detail); the liked-playlists sync keeps its own
     /// policy (name/thumbnail always refresh, bookmark defaults to now).
+    /// Thumbnail and auto-sync survive too: the detail path must not demote
+    /// a library row the sweeps select on `is_auto_sync`.
     public static func merging(
         existing: SyncPlaylist?,
         id: String,
@@ -287,9 +293,11 @@ extension SyncPlaylist {
             id: id,
             browseId: browseId,
             name: existing?.name ?? name,
+            thumbnailUrl: existing?.thumbnailUrl,
             isEditable: existing?.isEditable ?? false,
             bookmarkedAt: existing?.bookmarkedAt,
-            remoteSongCount: remoteSongCount
+            remoteSongCount: remoteSongCount,
+            isAutoSync: existing?.isAutoSync ?? false
         )
     }
 }
